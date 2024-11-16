@@ -144,7 +144,7 @@ export default function HomePage() {
             style={gradientStyle}
         >
             <div className="relative container">
-                <div className="grid grid-cols-2 gap-8">
+                <div className="grid grid-cols-2 gap-6">
                     {/* Left Section - Car Details */}
                     <motion.div
                         className="text-white p-8"
@@ -153,7 +153,7 @@ export default function HomePage() {
                         transition={{ duration: 0.5 }}
                     >
                         <motion.h1
-                            className="text-8xl font-bold mb-6"
+                            className="text-7xl font-bold mb-6"
                             layoutId={`title-${selectedCar._id}`}
                         >
                             {selectedCar.title}

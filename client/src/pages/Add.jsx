@@ -10,60 +10,9 @@ import {
     User,
     ChevronLeft,
     ChevronRight,
+    AlertCircle,
 } from "lucide-react";
-
-const extractColors = async (imgUrl) => {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            const regions = [
-                { x: 0, y: 0, w: canvas.width, h: canvas.height / 3 },
-                {
-                    x: 0,
-                    y: canvas.height / 3,
-                    w: canvas.width,
-                    h: canvas.height / 3,
-                },
-                {
-                    x: 0,
-                    y: (2 * canvas.height) / 3,
-                    w: canvas.width,
-                    h: canvas.height / 3,
-                },
-            ];
-            const colors = regions.map((region) => {
-                const imageData = ctx.getImageData(
-                    region.x,
-                    region.y,
-                    region.w,
-                    region.h
-                ).data;
-                let r = 0,
-                    g = 0,
-                    b = 0;
-                for (let i = 0; i < imageData.length; i += 16) {
-                    r += imageData[i];
-                    g += imageData[i + 1];
-                    b += imageData[i + 2];
-                }
-                const pixels = imageData.length / 4;
-                return {
-                    r: Math.round(r / pixels),
-                    g: Math.round(g / pixels),
-                    b: Math.round(b / pixels),
-                };
-            });
-            resolve(colors);
-        };
-        img.src = imgUrl;
-    });
-};
+// import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Add() {
     const navigate = useNavigate();
@@ -78,37 +27,84 @@ export default function Add() {
         },
     });
     const [previewUrls, setPreviewUrls] = useState([]);
-    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [currentPage, setCurrentPage] = useState(0);
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
-    const [gradientColors, setGradientColors] = useState([]);
+    const [errors, setErrors] = useState({});
+    const [dragActive, setDragActive] = useState(false);
 
     const imagesPerPage = 5;
     const totalPages = Math.ceil(previewUrls.length / imagesPerPage);
-    const currentPage = Math.floor(currentImageIndex / imagesPerPage);
 
-    useEffect(() => {
-        if (previewUrls[currentImageIndex]) {
-            const updateGradient = async () => {
-                const colors = await extractColors(
-                    previewUrls[currentImageIndex]
-                );
-                setGradientColors(colors);
-            };
-            updateGradient();
+    const validateForm = () => {
+        const newErrors = {};
+
+        if (!formData.title.trim()) {
+            newErrors.title = "Title is required";
+        } else if (formData.title.length < 3) {
+            newErrors.title = "Title must be at least 3 characters";
         }
-    }, [currentImageIndex, previewUrls]);
+
+        if (!formData.description.trim()) {
+            newErrors.description = "Description is required";
+        } else if (formData.description.length < 10) {
+            newErrors.description =
+                "Description must be at least 10 characters";
+        }
+
+        if (formData.images.length === 0) {
+            newErrors.images = "At least one image is required";
+        }
+
+        if (!formData.tags.car_type.trim()) {
+            newErrors.car_type = "Car type is required";
+        }
+
+        if (!formData.tags.company.trim()) {
+            newErrors.company = "Company is required";
+        }
+
+        if (!formData.tags.dealer.trim()) {
+            newErrors.dealer = "Dealer is required";
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleImageChange = (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length > 10) {
-            alert("Maximum 10 images allowed");
+        const files = Array.from(e.target.files || e.dataTransfer.files);
+
+        // Validate file types and sizes
+        const validFiles = files.filter((file) => {
+            const isValid = file.type.startsWith("image/");
+            const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB limit
+            return isValid && isValidSize;
+        });
+
+        if (validFiles.length + formData.images.length > 10) {
+            setErrors((prev) => ({
+                ...prev,
+                images: "Maximum 10 images allowed",
+            }));
             return;
         }
 
-        setFormData((prev) => ({ ...prev, images: files }));
-        const urls = files.map((file) => URL.createObjectURL(file));
-        setPreviewUrls(urls);
+        if (validFiles.length !== files.length) {
+            setErrors((prev) => ({
+                ...prev,
+                images: "Some files were skipped. Images must be under 5MB",
+            }));
+        }
+
+        setFormData((prev) => ({
+            ...prev,
+            images: [...prev.images, ...validFiles],
+        }));
+
+        const newUrls = validFiles.map((file) => URL.createObjectURL(file));
+        setPreviewUrls((prev) => [...prev, ...newUrls]);
+        setErrors((prev) => ({ ...prev, images: null }));
     };
 
     const removeImage = (index) => {
@@ -116,15 +112,44 @@ export default function Add() {
         const newFiles = Array.from(formData.images).filter(
             (_, i) => i !== index
         );
+
+        // Revoke the URL to prevent memory leaks
+        URL.revokeObjectURL(previewUrls[index]);
+
         setPreviewUrls(newUrls);
         setFormData((prev) => ({ ...prev, images: newFiles }));
-        if (currentImageIndex >= newUrls.length) {
-            setCurrentImageIndex(Math.max(0, newUrls.length - 1));
+
+        if (currentPage >= Math.ceil(newUrls.length / imagesPerPage)) {
+            setCurrentPage(
+                Math.max(0, Math.ceil(newUrls.length / imagesPerPage) - 1)
+            );
         }
+    };
+
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        handleImageChange(e);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateForm()) {
+            return;
+        }
+
         setLoading(true);
         try {
             const form = new FormData();
@@ -139,39 +164,38 @@ export default function Add() {
             navigate("/list");
         } catch (error) {
             console.error("Error creating car:", error);
-            alert("Error creating car listing");
+            setErrors((prev) => ({
+                ...prev,
+                submit: "Error creating car listing. Please try again.",
+            }));
         }
         setLoading(false);
     };
 
-    const gradientStyle = {
-        background: gradientColors.length
-            ? `linear-gradient(135deg,
-                rgba(${gradientColors[0].r}, ${gradientColors[0].g}, ${gradientColors[0].b}, 0.9) 0%,
-                rgba(${gradientColors[1].r}, ${gradientColors[1].g}, ${gradientColors[1].b}, 0.6) 50%,
-                rgba(${gradientColors[2].r}, ${gradientColors[2].g}, ${gradientColors[2].b}, 0.8) 100%)`
-            : "rgb(109, 40, 217)",
-        transition: "background 1s cubic-bezier(0.4, 0, 0.2, 1)",
-    };
-
     const nextPage = () => {
         if (currentPage < totalPages - 1) {
-            setCurrentImageIndex((currentPage + 1) * imagesPerPage);
+            setCurrentPage((curr) => curr + 1);
         }
     };
 
     const prevPage = () => {
         if (currentPage > 0) {
-            setCurrentImageIndex((currentPage - 1) * imagesPerPage);
+            setCurrentPage((curr) => curr - 1);
         }
     };
+
+    // Cleanup URLs on unmount
+    useEffect(() => {
+        return () => {
+            previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, []);
 
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="h-full w-full rounded-3xl relative p-10 overflow-hidden"
-            style={gradientStyle}
+            className="h-full w-full rounded-3xl relative p-10 overflow-hidden bg-gradient-to-br from-purple-700 to-purple-900"
         >
             <motion.form
                 onSubmit={handleSubmit}
@@ -197,140 +221,41 @@ export default function Add() {
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.3 }}
                     >
-                        <label className="block font-medium text-white mb-2">
-                            Car Images (Max 10)
-                        </label>
+                        <div>
+                            <label className="block font-medium text-white mb-2">
+                                Car Images (Max 10)
+                                <span className="text-red-400 ml-1">*</span>
+                            </label>
+                            <span className="text-sm text-white/60 block mb-4">
+                                Upload up to 10 images, each under 5MB
+                            </span>
+                        </div>
 
-                        {previewUrls.length > 0 ? (
-                            <div className="space-y-6">
-                                {/* Main Preview */}
-                                <motion.div
-                                    className="relative aspect-[16/9] rounded-2xl overflow-hidden"
-                                    layoutId={`preview-${currentImageIndex}`}
-                                >
-                                    <img
-                                        src={previewUrls[currentImageIndex]}
-                                        alt={`Preview ${currentImageIndex + 1}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                    <motion.button
-                                        type="button"
-                                        onClick={() =>
-                                            removeImage(currentImageIndex)
-                                        }
-                                        className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full text-white transition-colors"
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                    >
-                                        <X size={20} />
-                                    </motion.button>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                                </motion.div>
-
-                                {/* Carousel */}
-                                <div className="relative">
-                                    <div className="grid grid-cols-5 gap-4">
-                                        <AnimatePresence mode="popLayout">
-                                            {previewUrls
-                                                .slice(
-                                                    currentPage * imagesPerPage,
-                                                    (currentPage + 1) *
-                                                        imagesPerPage
-                                                )
-                                                .map((url, index) => {
-                                                    const actualIndex =
-                                                        currentPage *
-                                                            imagesPerPage +
-                                                        index;
-                                                    return (
-                                                        <motion.div
-                                                            key={url}
-                                                            layout
-                                                            initial={{
-                                                                scale: 0,
-                                                                opacity: 0,
-                                                            }}
-                                                            animate={{
-                                                                scale: 1,
-                                                                opacity: 1,
-                                                            }}
-                                                            exit={{
-                                                                scale: 0,
-                                                                opacity: 0,
-                                                            }}
-                                                            className={`relative aspect-video cursor-pointer rounded-lg overflow-hidden ${
-                                                                currentImageIndex ===
-                                                                actualIndex
-                                                                    ? "ring-2 ring-white"
-                                                                    : ""
-                                                            }`}
-                                                            onClick={() =>
-                                                                setCurrentImageIndex(
-                                                                    actualIndex
-                                                                )
-                                                            }
-                                                        >
-                                                            <img
-                                                                src={url}
-                                                                alt={`Thumbnail ${
-                                                                    actualIndex +
-                                                                    1
-                                                                }`}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        </motion.div>
-                                                    );
-                                                })}
-                                        </AnimatePresence>
-                                    </div>
-                                    {totalPages > 1 && (
-                                        <div className="flex justify-between mt-4">
-                                            <motion.button
-                                                type="button"
-                                                onClick={prevPage}
-                                                disabled={currentPage === 0}
-                                                className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                            >
-                                                <ChevronLeft
-                                                    className="text-white"
-                                                    size={24}
-                                                />
-                                            </motion.button>
-                                            <motion.button
-                                                type="button"
-                                                onClick={nextPage}
-                                                disabled={
-                                                    currentPage ===
-                                                    totalPages - 1
-                                                }
-                                                className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                            >
-                                                <ChevronRight
-                                                    className="text-white"
-                                                    size={24}
-                                                />
-                                            </motion.button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <motion.label
-                                className="w-full aspect-video flex flex-col items-center justify-center border-2 border-dashed border-white/30 rounded-2xl cursor-pointer hover:border-white/50 hover:bg-white/5 transition-colors"
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                        <motion.div
+                            className={`w-full aspect-video flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${
+                                dragActive
+                                    ? "border-white bg-white/10"
+                                    : "border-white/30 hover:border-white/50 hover:bg-white/5"
+                            }`}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                        >
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                className="hidden"
+                                id="image-upload"
+                            />
+                            <label
+                                htmlFor="image-upload"
+                                className="w-full h-full flex flex-col items-center justify-center cursor-pointer"
                             >
-                                <input
-                                    type="file"
-                                    multiple
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                    className="hidden"
-                                />
                                 <Upload className="w-16 h-16 text-white/80 mb-4" />
                                 <span className="text-xl text-white/80 font-medium">
                                     Drop your images here
@@ -338,7 +263,115 @@ export default function Add() {
                                 <span className="text-sm text-white/60 mt-2">
                                     or click to browse
                                 </span>
-                            </motion.label>
+                            </label>
+                        </motion.div>
+
+                        {errors.images && (
+                            <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    {errors.images}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* Image Grid */}
+                        {previewUrls.length > 0 && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-5 gap-4">
+                                    <AnimatePresence mode="popLayout">
+                                        {previewUrls
+                                            .slice(
+                                                currentPage * imagesPerPage,
+                                                (currentPage + 1) *
+                                                    imagesPerPage
+                                            )
+                                            .map((url, index) => {
+                                                const actualIndex =
+                                                    currentPage *
+                                                        imagesPerPage +
+                                                    index;
+                                                return (
+                                                    <motion.div
+                                                        key={url}
+                                                        layout
+                                                        initial={{
+                                                            scale: 0,
+                                                            opacity: 0,
+                                                        }}
+                                                        animate={{
+                                                            scale: 1,
+                                                            opacity: 1,
+                                                        }}
+                                                        exit={{
+                                                            scale: 0,
+                                                            opacity: 0,
+                                                        }}
+                                                        className="relative aspect-video rounded-lg overflow-hidden group"
+                                                    >
+                                                        <img
+                                                            src={url}
+                                                            alt={`Preview ${
+                                                                actualIndex + 1
+                                                            }`}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                        <motion.button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                removeImage(
+                                                                    actualIndex
+                                                                )
+                                                            }
+                                                            className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            whileHover={{
+                                                                scale: 1.1,
+                                                            }}
+                                                            whileTap={{
+                                                                scale: 0.9,
+                                                            }}
+                                                        >
+                                                            <X size={16} />
+                                                        </motion.button>
+                                                    </motion.div>
+                                                );
+                                            })}
+                                    </AnimatePresence>
+                                </div>
+
+                                {totalPages > 1 && (
+                                    <div className="flex justify-between mt-4">
+                                        <motion.button
+                                            type="button"
+                                            onClick={prevPage}
+                                            disabled={currentPage === 0}
+                                            className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                        >
+                                            <ChevronLeft
+                                                className="text-white"
+                                                size={24}
+                                            />
+                                        </motion.button>
+                                        <motion.button
+                                            type="button"
+                                            onClick={nextPage}
+                                            disabled={
+                                                currentPage === totalPages - 1
+                                            }
+                                            className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                        >
+                                            <ChevronRight
+                                                className="text-white"
+                                                size={24}
+                                            />
+                                        </motion.button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </motion.div>
 
@@ -353,6 +386,7 @@ export default function Add() {
                             <div>
                                 <label className="block text-sm font-medium text-white/80 mb-2">
                                     Title
+                                    <span className="text-red-400 ml-1">*</span>
                                 </label>
                                 <motion.input
                                     type="text"
@@ -365,22 +399,32 @@ export default function Add() {
                                     }
                                     onFocus={() => setFocusedField("title")}
                                     onBlur={() => setFocusedField(null)}
-                                    className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 focus:border-white/30 transition-all"
+                                    className={`w-full rounded-xl bg-white/10 border px-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 transition-all ${
+                                        errors.title
+                                            ? "border-red-400"
+                                            : "border-white/20"
+                                    }`}
                                     animate={{
                                         scale:
                                             focusedField === "title" ? 1.02 : 1,
                                     }}
                                     required
                                 />
+                                {errors.title && (
+                                    <span className="text-sm text-red-400 mt-1">
+                                        {errors.title}
+                                    </span>
+                                )}
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-white/80 mb-2">
                                     Description
+                                    <span className="text-red-400 ml-1">*</span>
                                 </label>
                                 <motion.textarea
                                     value={formData.description}
-                                    style={{ resize: 'none' }}
+                                    style={{ resize: "none" }}
                                     onChange={(e) =>
                                         setFormData((prev) => ({
                                             ...prev,
@@ -392,7 +436,11 @@ export default function Add() {
                                     }
                                     onBlur={() => setFocusedField(null)}
                                     rows={4}
-                                    className="w-full rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 focus:border-white/30 transition-all"
+                                    className={`w-full rounded-xl bg-white/10 border px-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 transition-all ${
+                                        errors.description
+                                            ? "border-red-400"
+                                            : "border-white/20"
+                                    }`}
                                     animate={{
                                         scale:
                                             focusedField === "description"
@@ -400,7 +448,13 @@ export default function Add() {
                                                 : 1,
                                     }}
                                     required
+                                    placeholder="Enter detailed description of the car"
                                 />
+                                {errors.description && (
+                                    <span className="text-sm text-red-400 mt-1">
+                                        {errors.description}
+                                    </span>
+                                )}
                             </div>
                         </motion.div>
 
@@ -416,17 +470,27 @@ export default function Add() {
                                     label: "Car Type",
                                     icon: Car,
                                     key: "car_type",
+                                    placeholder: "e.g., SUV, Sedan",
                                 },
                                 {
                                     label: "Company",
                                     icon: Building2,
                                     key: "company",
+                                    placeholder: "e.g., Toyota, BMW",
                                 },
-                                { label: "Dealer", icon: User, key: "dealer" },
-                            ].map(({ label, icon: Icon, key }) => (
+                                {
+                                    label: "Dealer",
+                                    icon: User,
+                                    key: "dealer",
+                                    placeholder: "Enter dealer name",
+                                },
+                            ].map(({ label, icon: Icon, key, placeholder }) => (
                                 <div key={key} className="relative">
                                     <label className="block text-sm font-medium text-white/80 mb-2">
                                         {label}
+                                        <span className="text-red-400 ml-1">
+                                            *
+                                        </span>
                                     </label>
                                     <div className="relative">
                                         <Icon
@@ -447,7 +511,12 @@ export default function Add() {
                                             }
                                             onFocus={() => setFocusedField(key)}
                                             onBlur={() => setFocusedField(null)}
-                                            className="w-full rounded-xl bg-white/10 border border-white/20 pl-10 pr-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 focus:border-white/30 transition-all"
+                                            placeholder={placeholder}
+                                            className={`w-full rounded-xl bg-white/10 border pl-10 pr-4 py-3 text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 transition-all ${
+                                                errors[key]
+                                                    ? "border-red-400"
+                                                    : "border-white/20"
+                                            }`}
                                             animate={{
                                                 scale:
                                                     focusedField === key
@@ -455,25 +524,40 @@ export default function Add() {
                                                         : 1,
                                             }}
                                         />
+                                        {errors[key] && (
+                                            <span className="text-sm text-red-400 mt-1 block">
+                                                {errors[key]}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))}
                         </motion.div>
 
+                        {/* Error Alert */}
+                        {errors.submit && (
+                            <Alert variant="destructive" className="mt-6">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    {errors.submit}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         {/* Submit Button */}
                         <motion.button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-white/20 backdrop-blur-sm text-white py-4 rounded-xl font-medium hover:bg-white/30 disabled:opacity-50 transition-colors mt-8"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                            className="w-full bg-white/20 backdrop-blur-sm text-white py-4 rounded-xl font-medium hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-8"
+                            whileHover={{ scale: loading ? 1 : 1.02 }}
+                            whileTap={{ scale: loading ? 1 : 0.98 }}
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ delay: 0.7 }}
                         >
                             {loading ? (
                                 <motion.div
-                                    className="flex items-center justify-center"
+                                    className="flex items-center justify-center gap-2"
                                     animate={{ rotate: 360 }}
                                     transition={{
                                         duration: 1,
@@ -481,6 +565,7 @@ export default function Add() {
                                         ease: "linear",
                                     }}
                                 >
+                                    <span className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
                                     Creating...
                                 </motion.div>
                             ) : (
