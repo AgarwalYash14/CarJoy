@@ -18,6 +18,9 @@ app.use(
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
+        exposedHeaders: ["Access-Control-Allow-Origin"],
+        preflightContinue: true,
+        optionsSuccessStatus: 200,
     })
 );
 app.use(cookieParser());
