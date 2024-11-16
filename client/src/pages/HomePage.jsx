@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { carAPI } from "../api/carApi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "react-intersection-observer";
@@ -65,11 +65,8 @@ export default function HomePage() {
     const [selectedImage, setSelectedImage] = useState(0);
     const [gradientColors, setGradientColors] = useState([]);
     const [currentPage, setCurrentPage] = useState(0);
-    const [ref, inView] = useInView({
-        threshold: 0.1,
-        triggerOnce: false,
-    });
     const { id } = useParams();
+    const navigate = useNavigate();
     const baseImageURL = `${import.meta.env.VITE_BACKEND_URL}/uploads/`;
     const imagesPerPage = 5;
 
@@ -78,18 +75,22 @@ export default function HomePage() {
             try {
                 const cars = await carAPI.getAllCars();
                 setCarsList(cars);
+
                 if (id) {
                     const car = await carAPI.getCarById(id);
                     setSelectedCar(car);
                 } else if (cars.length > 0) {
-                    setSelectedCar(cars[0]);
+                    // If no ID is provided, redirect to the first car
+                    navigate(`/car/${cars[0]._id}`);
                 }
             } catch (error) {
                 console.error("Error fetching cars:", error);
+                // Redirect to list view if there's an error
+                navigate("/list");
             }
         };
         fetchCars();
-    }, [id]);
+    }, [id, navigate]);
 
     useEffect(() => {
         if (selectedCar?.images?.[selectedImage]) {
@@ -119,22 +120,22 @@ export default function HomePage() {
         }
     };
 
-    if (!selectedCar) return <div>Loading...</div>;
-
     const gradientStyle = {
         background: gradientColors.length
             ? `linear-gradient(135deg,
-                rgba(${gradientColors[0].r}, ${gradientColors[0].g}, ${gradientColors[0].b}, 0.9) 0%,
-                rgba(${gradientColors[1].r}, ${gradientColors[1].g}, ${gradientColors[1].b}, 0.6) 50%,
-                rgba(${gradientColors[2].r}, ${gradientColors[2].g}, ${gradientColors[2].b}, 0.8) 100%)`
+        rgba(${gradientColors[0].r}, ${gradientColors[0].g}, ${gradientColors[0].b}, 0.9) 0%,
+        rgba(${gradientColors[1].r}, ${gradientColors[1].g}, ${gradientColors[1].b}, 0.6) 50%,
+        rgba(${gradientColors[2].r}, ${gradientColors[2].g}, ${gradientColors[2].b}, 0.8) 100%)`
             : "rgb(30, 30, 30)",
         transition: "background 1s cubic-bezier(0.4, 0, 0.2, 1)",
     };
 
     const handleCarChange = (car) => {
         setSelectedImage(0);
-        setSelectedCar(car);
+        navigate(`/car/${car._id}`);
     };
+
+    if (!selectedCar) return <div>Loading...</div>;
 
     return (
         <motion.div
@@ -213,95 +214,89 @@ export default function HomePage() {
 
                     {/* Thumbnail Carousel */}
                     <motion.div
-                        className="col-span-2 px-8 space-y-4"
+                        className="col-span-2 px-8 relative"
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.4 }}
                     >
-                        <div className="relative">
-                            <div className="grid grid-cols-5 gap-2">
-                                <AnimatePresence mode="popLayout">
-                                    {selectedCar.images
-                                        .slice(
-                                            currentPage * imagesPerPage,
-                                            (currentPage + 1) * imagesPerPage
-                                        )
-                                        .map((image, index) => {
-                                            const actualIndex =
-                                                currentPage * imagesPerPage +
-                                                index;
-                                            return (
-                                                <motion.div
-                                                    key={image}
-                                                    className={`relative cursor-pointer overflow-hidden rounded-lg aspect-video
-                                                        ${
-                                                            selectedImage ===
-                                                            actualIndex
-                                                                ? "ring-2 ring-white"
-                                                                : ""
-                                                        }`}
-                                                    whileHover={{ scale: 1.05 }}
-                                                    onClick={() =>
-                                                        setSelectedImage(
-                                                            actualIndex
-                                                        )
-                                                    }
-                                                    initial={{
-                                                        opacity: 0,
-                                                        scale: 0.8,
-                                                    }}
-                                                    animate={{
-                                                        opacity: 1,
-                                                        scale: 1,
-                                                    }}
-                                                    exit={{
-                                                        opacity: 0,
-                                                        scale: 0.8,
-                                                    }}
-                                                >
-                                                    <img
-                                                        src={`${baseImageURL}${image}`}
-                                                        alt={`${
-                                                            selectedCar.title
-                                                        } - ${actualIndex + 1}`}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </motion.div>
-                                            );
-                                        })}
-                                </AnimatePresence>
-                            </div>
-                            {totalPages > 1 && (
-                                <div className="flex justify-between mt-4">
-                                    <motion.button
-                                        onClick={prevPage}
-                                        disabled={currentPage === 0}
-                                        className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                    >
-                                        <ChevronLeft
-                                            className="text-white"
-                                            size={24}
-                                        />
-                                    </motion.button>
-                                    <motion.button
-                                        onClick={nextPage}
-                                        disabled={
-                                            currentPage === totalPages - 1
-                                        }
-                                        className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                    >
-                                        <ChevronRight
-                                            className="text-white"
-                                            size={24}
-                                        />
-                                    </motion.button>
-                                </div>
-                            )}
+                        <div className="grid grid-cols-5 gap-4">
+                            <AnimatePresence mode="popLayout">
+                                {selectedCar.images
+                                    .slice(
+                                        currentPage,
+                                        currentPage + imagesPerPage
+                                    )
+                                    .map((image, index) => {
+                                        const actualIndex = currentPage + index;
+                                        return (
+                                            <motion.div
+                                                key={image}
+                                                className={`relative cursor-pointer overflow-hidden rounded-lg aspect-video
+                                ${
+                                    selectedImage === actualIndex
+                                        ? "ring-2 ring-white"
+                                        : ""
+                                }`}
+                                                whileHover={{ scale: 1.05 }}
+                                                onClick={() =>
+                                                    setSelectedImage(
+                                                        actualIndex
+                                                    )
+                                                }
+                                                initial={{
+                                                    opacity: 0,
+                                                    scale: 0.8,
+                                                }}
+                                                animate={{
+                                                    opacity: 1,
+                                                    scale: 1,
+                                                }}
+                                                exit={{
+                                                    opacity: 0,
+                                                    scale: 0.8,
+                                                }}
+                                            >
+                                                <img
+                                                    src={`${baseImageURL}${image}`}
+                                                    alt={`${
+                                                        selectedCar.title
+                                                    } - ${actualIndex + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </motion.div>
+                                        );
+                                    })}
+                            </AnimatePresence>
                         </div>
+
+                        {totalPages > 1 && (
+                            <div className="flex justify-between absolute left-0 top-1/2 -translate-y-1/2 w-full">
+                                <motion.button
+                                    onClick={prevPage}
+                                    disabled={currentPage === 0}
+                                    className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                >
+                                    <ChevronLeft
+                                        className="text-white"
+                                        size={24}
+                                    />
+                                </motion.button>
+                                <motion.button
+                                    onClick={nextPage}
+                                    disabled={currentPage === totalPages - 1}
+                                    className="p-2 bg-white/20 backdrop-blur-sm rounded-full disabled:opacity-50"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                >
+                                    <ChevronRight
+                                        className="text-white"
+                                        size={24}
+                                    />
+                                </motion.button>
+                            </div>
+                        )}
                     </motion.div>
                 </div>
             </div>

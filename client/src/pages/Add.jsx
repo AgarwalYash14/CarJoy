@@ -556,15 +556,7 @@ export default function Add() {
                             transition={{ delay: 0.7 }}
                         >
                             {loading ? (
-                                <motion.div
-                                    className="flex items-center justify-center gap-2"
-                                    animate={{ rotate: 360 }}
-                                    transition={{
-                                        duration: 1,
-                                        repeat: Infinity,
-                                        ease: "linear",
-                                    }}
-                                >
+                                <motion.div className="flex items-center justify-center gap-2">
                                     <span className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
                                     Creating...
                                 </motion.div>

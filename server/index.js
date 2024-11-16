@@ -18,11 +18,11 @@ app.use(
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
-        exposedHeaders: ["Access-Control-Allow-Origin"],
-        preflightContinue: true,
-        optionsSuccessStatus: 200,
+        exposedHeaders: ["Content-Type", "Authorization"],
     })
 );
+
+app.options("*", cors());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

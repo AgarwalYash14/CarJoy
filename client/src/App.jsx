@@ -43,6 +43,7 @@ function App() {
                         }
                     >
                         <Route index element={<HomePage />} />
+                        <Route path="/car/:id" element={<HomePage />} />
                         <Route path="/add" element={<Add />} />
                         <Route path="/list" element={<List />} />
                     </Route>
