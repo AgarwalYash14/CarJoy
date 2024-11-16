@@ -14,15 +14,39 @@ const app = express();
 // Enhanced security middleware
 app.use(
     cors({
-        origin: process.env.CLIENT_URL,
+        origin: process.env.CLIENT_URL || "https://carjoy.vercel.app",
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-        exposedHeaders: ["Content-Type", "Authorization"],
+        allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+        exposedHeaders: ["Set-Cookie", "Access-Control-Allow-Origin"],
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
     })
 );
 
-app.options("*", cors());
+// Ensure CORS headers are set for all responses
+app.use((req, res, next) => {
+    res.header(
+        "Access-Control-Allow-Origin",
+        process.env.CLIENT_URL || "https://carjoy.vercel.app"
+    );
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie"
+    );
+    res.header(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+    );
+
+    // Handle preflight requests
+    if (req.method === "OPTIONS") {
+        return res.status(204).end();
+    }
+    next();
+});
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
