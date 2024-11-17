@@ -8,6 +8,7 @@ import RegisterPage from "./pages/RegisterPage";
 import Layout from "./layout/layout";
 import Add from "./pages/Add";
 import List from "./pages/List";
+import Edit from "./pages/EditPage";
 
 function App() {
     return (
@@ -45,6 +46,7 @@ function App() {
                         <Route index element={<HomePage />} />
                         <Route path="/car/:id" element={<HomePage />} />
                         <Route path="/add" element={<Add />} />
+                        <Route path="/edit/:id" element={<Edit />} />
                         <Route path="/list" element={<List />} />
                     </Route>
                 </Routes>

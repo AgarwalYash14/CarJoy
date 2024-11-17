@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { carAPI } from "../api/carApi";
 import { motion, AnimatePresence } from "framer-motion";
-import { useInView } from "react-intersection-observer";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { HashLoader } from "react-spinners";
 
 // Helper function remains the same
 const extractColors = async (imgUrl) => {
@@ -135,7 +135,12 @@ export default function HomePage() {
         navigate(`/car/${car._id}`);
     };
 
-    if (!selectedCar) return <div>Loading...</div>;
+    if (!selectedCar)
+        return (
+            <div className="h-full w-full flex items-center justify-center">
+                <HashLoader color="#ffffff"  />
+            </div>
+        );
 
     return (
         <motion.div

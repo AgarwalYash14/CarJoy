@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { carAPI } from "../api/carApi";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -11,10 +11,12 @@ import {
     ChevronLeft,
     ChevronRight,
     AlertCircle,
+    ArrowLeft,
 } from "lucide-react";
 
-export default function Add() {
+export default function Edit() {
     const navigate = useNavigate();
+    const { id } = useParams();
     const [formData, setFormData] = useState({
         title: "",
         description: "",
@@ -28,12 +30,43 @@ export default function Add() {
     const [previewUrls, setPreviewUrls] = useState([]);
     const [currentPage, setCurrentPage] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [focusedField, setFocusedField] = useState(null);
     const [errors, setErrors] = useState({});
     const [dragActive, setDragActive] = useState(false);
+    const [existingImages, setExistingImages] = useState([]);
+    const [removedImages, setRemovedImages] = useState([]);
 
     const imagesPerPage = 5;
-    const totalPages = Math.ceil(previewUrls.length / imagesPerPage);
+    const totalPages = Math.ceil(
+        (previewUrls.length + existingImages.length) / imagesPerPage
+    );
+    const baseImageURL = `${import.meta.env.VITE_BACKEND_URL}/uploads/`;
+
+    useEffect(() => {
+        fetchCarData();
+    }, [id]);
+
+    const fetchCarData = async () => {
+        try {
+            const car = await carAPI.getCarById(id);
+            setFormData({
+                title: car.title,
+                description: car.description,
+                images: [],
+                tags: car.tags,
+            });
+            setExistingImages(car.images);
+            setInitialLoading(false);
+        } catch (error) {
+            console.error("Error fetching car:", error);
+            setErrors((prev) => ({
+                ...prev,
+                fetch: "Error loading car data. Please try again.",
+            }));
+            setInitialLoading(false);
+        }
+    };
 
     const validateForm = () => {
         const newErrors = {};
@@ -51,7 +84,7 @@ export default function Add() {
                 "Description must be at least 10 characters";
         }
 
-        if (formData.images.length === 0) {
+        if (formData.images.length === 0 && existingImages.length === 0) {
             newErrors.images = "At least one image is required";
         }
 
@@ -74,14 +107,16 @@ export default function Add() {
     const handleImageChange = (e) => {
         const files = Array.from(e.target.files || e.dataTransfer.files);
 
-        // Validate file types and sizes
         const validFiles = files.filter((file) => {
             const isValid = file.type.startsWith("image/");
             const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB limit
             return isValid && isValidSize;
         });
 
-        if (validFiles.length + formData.images.length > 10) {
+        if (
+            validFiles.length + formData.images.length + existingImages.length >
+            10
+        ) {
             setErrors((prev) => ({
                 ...prev,
                 images: "Maximum 10 images allowed",
@@ -106,13 +141,12 @@ export default function Add() {
         setErrors((prev) => ({ ...prev, images: null }));
     };
 
-    const removeImage = (index) => {
+    const removeNewImage = (index) => {
         const newUrls = previewUrls.filter((_, i) => i !== index);
         const newFiles = Array.from(formData.images).filter(
             (_, i) => i !== index
         );
 
-        // Revoke the URL to prevent memory leaks
         URL.revokeObjectURL(previewUrls[index]);
 
         setPreviewUrls(newUrls);
@@ -123,6 +157,11 @@ export default function Add() {
                 Math.max(0, Math.ceil(newUrls.length / imagesPerPage) - 1)
             );
         }
+    };
+
+    const removeExistingImage = (filename) => {
+        setExistingImages((prev) => prev.filter((img) => img !== filename));
+        setRemovedImages((prev) => [...prev, filename]);
     };
 
     const handleDrag = (e) => {
@@ -155,17 +194,18 @@ export default function Add() {
             form.append("title", formData.title);
             form.append("description", formData.description);
             form.append("tags", JSON.stringify(formData.tags));
+            form.append("removedImages", JSON.stringify(removedImages));
             formData.images.forEach((file) => form.append("images", file));
 
-            await carAPI.createCar(form, {
+            await carAPI.updateCar(id, form, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
             navigate("/list");
         } catch (error) {
-            console.error("Error creating car:", error);
+            console.error("Error updating car:", error);
             setErrors((prev) => ({
                 ...prev,
-                submit: "Error creating car listing. Please try again.",
+                submit: "Error updating car listing. Please try again.",
             }));
         }
         setLoading(false);
@@ -190,12 +230,29 @@ export default function Add() {
         };
     }, []);
 
+    if (initialLoading) {
+        return (
+            <div className="h-full w-full flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="h-full w-full rounded-3xl relative p-10 overflow-hidden bg-gradient-to-br from-purple-700 to-purple-900"
         >
+            <motion.button
+                onClick={() => navigate("/list")}
+                className="absolute top-6 left-6 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+            >
+                <ArrowLeft size={24} />
+            </motion.button>
+
             <motion.form
                 onSubmit={handleSubmit}
                 className="container mx-auto space-y-8"
@@ -209,7 +266,7 @@ export default function Add() {
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.2 }}
                 >
-                    Add New Car
+                    Edit Car
                 </motion.h1>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -266,30 +323,91 @@ export default function Add() {
                         </motion.div>
 
                         {errors.images && (
-                            <Alert variant="destructive">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                    {errors.images}
-                                </AlertDescription>
-                            </Alert>
+                            <div className="text-red-400 text-sm flex items-center gap-2">
+                                <AlertCircle size={16} />
+                                {errors.images}
+                            </div>
                         )}
 
                         {/* Image Grid */}
-                        {previewUrls.length > 0 && (
+                        {(previewUrls.length > 0 ||
+                            existingImages.length > 0) && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-5 gap-4">
                                     <AnimatePresence mode="popLayout">
-                                        {previewUrls
+                                        {/* Existing Images */}
+                                        {existingImages
                                             .slice(
                                                 currentPage * imagesPerPage,
                                                 (currentPage + 1) *
                                                     imagesPerPage
                                             )
+                                            .map((filename, index) => (
+                                                <motion.div
+                                                    key={`existing-${filename}`}
+                                                    layout
+                                                    initial={{
+                                                        scale: 0,
+                                                        opacity: 0,
+                                                    }}
+                                                    animate={{
+                                                        scale: 1,
+                                                        opacity: 1,
+                                                    }}
+                                                    exit={{
+                                                        scale: 0,
+                                                        opacity: 0,
+                                                    }}
+                                                    className="relative aspect-video rounded-lg overflow-hidden group"
+                                                >
+                                                    <img
+                                                        src={`${baseImageURL}${filename}`}
+                                                        alt={`Existing ${
+                                                            index + 1
+                                                        }`}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    <motion.button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            removeExistingImage(
+                                                                filename
+                                                            )
+                                                        }
+                                                        className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        whileHover={{
+                                                            scale: 1.1,
+                                                        }}
+                                                        whileTap={{
+                                                            scale: 0.9,
+                                                        }}
+                                                    >
+                                                        <X size={16} />
+                                                    </motion.button>
+                                                </motion.div>
+                                            ))}
+
+                                        {/* New Images */}
+                                        {previewUrls
+                                            .slice(
+                                                Math.max(
+                                                    0,
+                                                    currentPage *
+                                                        imagesPerPage -
+                                                        existingImages.length
+                                                ),
+                                                (currentPage + 1) *
+                                                    imagesPerPage -
+                                                    existingImages.length
+                                            )
                                             .map((url, index) => {
                                                 const actualIndex =
-                                                    currentPage *
-                                                        imagesPerPage +
-                                                    index;
+                                                    Math.max(
+                                                        0,
+                                                        currentPage *
+                                                            imagesPerPage -
+                                                            existingImages.length
+                                                    ) + index;
                                                 return (
                                                     <motion.div
                                                         key={url}
@@ -318,7 +436,7 @@ export default function Add() {
                                                         <motion.button
                                                             type="button"
                                                             onClick={() =>
-                                                                removeImage(
+                                                                removeNewImage(
                                                                     actualIndex
                                                                 )
                                                             }
@@ -337,7 +455,6 @@ export default function Add() {
                                             })}
                                     </AnimatePresence>
                                 </div>
-
                                 {totalPages > 1 && (
                                     <div className="flex justify-between mt-4">
                                         <motion.button
@@ -554,10 +671,10 @@ export default function Add() {
                             {loading ? (
                                 <motion.div className="flex items-center justify-center gap-2">
                                     <span className="w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
-                                    Creating...
+                                    Updating...
                                 </motion.div>
                             ) : (
-                                "Create Car Listing"
+                                "Update Car Listing"
                             )}
                         </motion.button>
                     </div>
