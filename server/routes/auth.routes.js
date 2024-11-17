@@ -16,14 +16,20 @@ const generateToken = (user) => {
     );
 };
 
+const getCookieConfig = () => {
+    const isProduction = process.env.NODE_ENV === "production";
+    return {
+        httpOnly: true,
+        secure: isProduction, // Only set to true in production
+        sameSite: isProduction ? "none" : "lax", // Use 'none' for cross-site cookies in production
+        domain: isProduction ? ".vercel.app" : "localhost", // Adjust domain based on environment
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    };
+};
+
 // Set secure cookie with JWT token
 const setTokenCookie = (res, token) => {
-    res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    res.cookie("token", token, getCookieConfig());
 };
 
 // Register
@@ -90,9 +96,8 @@ router.post("/login", async (req, res) => {
 // Logout
 router.post("/logout", (req, res) => {
     res.clearCookie("token", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        ...getCookieConfig(),
+        maxAge: 0,
     });
     res.json({ message: "Logged out successfully" });
 });
