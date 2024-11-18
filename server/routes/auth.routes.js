@@ -19,7 +19,7 @@ const generateToken = (user) => {
 const getCookieConfig = () => {
     const isProduction = process.env.NODE_ENV === "production";
     return {
-        httpOnly: true,
+        httpOnly: false,
         secure: isProduction, // Only set to true in production
         sameSite: isProduction ? "none" : "lax", // Use 'none' for cross-site cookies in production
         domain: isProduction ? ".vercel.app" : "localhost", // Adjust domain based on environment
