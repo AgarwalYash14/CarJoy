@@ -21,7 +21,7 @@ const getCookieConfig = (req) => {
     const isProduction = process.env.VERCEL_ENV === "production";
 
     return {
-        httpOnly: true,
+        httpOnly: false,
         secure: isProduction,
         sameSite: isProduction ? "none" : "lax", // Important for Vercel
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
