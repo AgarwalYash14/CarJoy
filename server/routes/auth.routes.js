@@ -16,20 +16,24 @@ const generateToken = (user) => {
     );
 };
 
-const getCookieConfig = () => {
-    const isProduction = process.env.NODE_ENV === "production";
+const getCookieConfig = (req) => {
+    // Check if we're in production (Vercel) environment
+    const isProduction = process.env.VERCEL_ENV === "production";
+
     return {
-        httpOnly: false,
-        secure: isProduction, // Only set to true in production
-        sameSite: isProduction ? "none" : "lax", // Use 'none' for cross-site cookies in production
-        domain: isProduction ? ".vercel.app" : "localhost", // Adjust domain based on environment
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", // Important for Vercel
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: "/",
+        domain: isProduction ? process.env.VERCEL_URL : "localhost", // Set domain based on environment
     };
 };
 
 // Set secure cookie with JWT token
-const setTokenCookie = (res, token) => {
-    res.cookie("token", token, getCookieConfig());
+const setTokenCookie = (req, res, token) => {
+    const cookieConfig = getCookieConfig(req);
+    res.cookie("token", token, cookieConfig);
 };
 
 // Register
@@ -53,9 +57,9 @@ router.post("/register", async (req, res) => {
         await user.save();
 
         const token = generateToken(user);
-        setTokenCookie(res, token);
+        setTokenCookie(req, res, token);
 
-        res.status(201).json({ user: user.toSafeObject() });
+        res.status(201).json({ user: user.toObject(), token });
     } catch (error) {
         console.error("Registration error:", error);
         res.status(500).json({ message: "Error creating user" });
@@ -86,7 +90,7 @@ router.post("/login", async (req, res) => {
         const token = generateToken(user);
         setTokenCookie(res, token);
 
-        res.json({ user: user.toSafeObject() });
+        res.json({ user: user.toSafeObject(), token });
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({ message: "An error occurred during login" });

@@ -39,6 +39,18 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const register = async (email, password) => {
+        try {
+            const { user } = await authApi.register(email, password);
+            setUser(user);
+            setIsAuthenticated(true);
+        } catch (error) {
+            setUser(null);
+            setIsAuthenticated(false);
+            throw error;
+        }
+    };
+
     const logout = async () => {
         await authApi.logout();
         setUser(null);
@@ -48,7 +60,7 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider
-            value={{ isAuthenticated, user, loading, login, logout }}
+            value={{ isAuthenticated, user, loading, login, register, logout }}
         >
             {children}
         </AuthContext.Provider>
