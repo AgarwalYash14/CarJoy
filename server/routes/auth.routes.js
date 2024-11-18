@@ -59,7 +59,7 @@ router.post("/register", async (req, res) => {
         const token = generateToken(user);
         setTokenCookie(req, res, token);
 
-        res.status(201).json({ user: user.toObject(), token });
+        res.status(201).json({ user: user.toSafeObject(), token });
     } catch (error) {
         console.error("Registration error:", error);
         res.status(500).json({ message: "Error creating user" });
@@ -88,7 +88,7 @@ router.post("/login", async (req, res) => {
         }
 
         const token = generateToken(user);
-        setTokenCookie(res, token);
+        setTokenCookie(req, res, token);
 
         res.json({ user: user.toSafeObject(), token });
     } catch (error) {
