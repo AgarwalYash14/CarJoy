@@ -266,12 +266,9 @@ export default function Add() {
                         </motion.div>
 
                         {errors.images && (
-                            <Alert variant="destructive">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>
-                                    {errors.images}
-                                </AlertDescription>
-                            </Alert>
+                            <span className="text-sm text-red-400 mt-1">
+                                {errors.images}
+                            </span>
                         )}
 
                         {/* Image Grid */}

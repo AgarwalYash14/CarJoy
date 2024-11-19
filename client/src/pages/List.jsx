@@ -49,19 +49,27 @@ export default function ListPage() {
     }, [searchQuery, cars]);
 
     const handleDelete = async (id, e) => {
-        e.preventDefault(); // Prevent navigation
-        e.stopPropagation(); // Prevent event bubbling
+        e.preventDefault();
+        e.stopPropagation();
 
-        if (window.confirm("Are you sure you want to delete this car?")) {
-            setDeleteLoading(id);
-            try {
-                await carAPI.deleteCar(id);
-                setCars((prevCars) => prevCars.filter((car) => car._id !== id));
-                setError("");
-            } catch (error) {
-                console.error("Error deleting car:", error);
-                setError("Failed to delete car. Please try again.");
-            }
+        if (!window.confirm("Are you sure you want to delete this car?")) {
+            return;
+        }
+
+        setDeleteLoading(id);
+        try {
+            await carAPI.deleteCar(id);
+            setCars((prevCars) => prevCars.filter((car) => car._id !== id));
+            setFilteredCars((prevCars) =>
+                prevCars.filter((car) => car._id !== id)
+            );
+            setError("");
+        } catch (error) {
+            console.error("Error deleting car:", error);
+            setError(
+                error.message || "Failed to delete car. Please try again."
+            );
+        } finally {
             setDeleteLoading(null);
         }
     };
@@ -118,7 +126,7 @@ export default function ListPage() {
 
                 {/* Cars Grid */}
                 <motion.div
-                    className="min-h-[90vh] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-auto"
+                    className="h-[82vh] pr-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-auto"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.2 }}
@@ -131,7 +139,7 @@ export default function ListPage() {
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
-                                className="group"
+                                className="group "
                             >
                                 <Link to={`/car/${car._id}`}>
                                     <div
@@ -172,7 +180,7 @@ export default function ListPage() {
                                                 onClick={(e) =>
                                                     handleEdit(car._id, e)
                                                 }
-                                                className="flex items-center gap-2 p-1.5 rounded-lg transition-colors border"
+                                                className="flex items-center gap-2 p-1.5 rounded-xl transition-colors border"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
@@ -182,7 +190,7 @@ export default function ListPage() {
                                                 onClick={(e) =>
                                                     handleDelete(car._id, e)
                                                 }
-                                                className="flex items-center gap-2 p-1.5 rounded-lg transition-colors border"
+                                                className="flex items-center gap-2 p-1.5 rounded-xl transition-colors border"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                                 disabled={

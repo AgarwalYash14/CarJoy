@@ -195,20 +195,27 @@ export default function Edit() {
             form.append("description", formData.description);
             form.append("tags", JSON.stringify(formData.tags));
             form.append("removedImages", JSON.stringify(removedImages));
-            formData.images.forEach((file) => form.append("images", file));
 
-            await carAPI.updateCar(id, form, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            // Append each image file separately
+            if (formData.images && formData.images.length > 0) {
+                Array.from(formData.images).forEach((file) => {
+                    form.append("images", file);
+                });
+            }
+
+            await carAPI.updateCar(id, form);
             navigate("/list");
         } catch (error) {
             console.error("Error updating car:", error);
             setErrors((prev) => ({
                 ...prev,
-                submit: "Error updating car listing. Please try again.",
+                submit:
+                    error.message ||
+                    "Error updating car listing. Please try again.",
             }));
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const nextPage = () => {
